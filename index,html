@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#e8590c">
+<title>Livraison Express</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#fafaf7;--card:#fff;--tx:#1d1d1b;--mu:#6b6b66;--ac:#e8590c;--bd:#e5e3dc}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#161615;--card:#222220;--tx:#f2f1ec;--mu:#a3a29b;--bd:#37362f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 -apple-system,system-ui,"Segoe UI",sans-serif}
+main{max-width:560px;margin:0 auto;padding:12px 14px 40px}
+h1{font-size:20px;margin:6px 0}h2{font-size:16px;margin:18px 0 8px}
+nav{display:flex;gap:6px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:4px;margin:8px 0}
+nav button{flex:1;border:0;background:none;color:var(--mu);padding:9px;border-radius:9px;font:inherit;font-weight:600}
+nav button.on{background:var(--ac);color:#fff}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:8px 0}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mu{color:var(--mu);font-size:14px}
+button.b{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:600}
+button.g{background:none;border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:7px 12px;font:inherit}
+button.q{width:34px;height:34px;border-radius:50%;border:1px solid var(--bd);background:none;color:var(--tx);font-size:18px}
+input,select{width:100%;padding:10px;margin:4px 0;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit}
+.t{font-size:12px;font-weight:700;padding:3px 8px;border-radius:99px;background:#fff3bf;color:#7a5b00}
+.t.en_livraison{background:#d0ebff;color:#0b4f80}.t.livre{background:#d3f9d8;color:#1b6b2a}
+.k{display:flex;gap:8px}.k .c{flex:1;text-align:center;margin:0}.k b{font-size:22px;display:block}
+.w{width:100%;margin-top:8px}
+</style></head><body><main>
+<div class="r"><h1>🛵 Livraison Express</h1><button class="g" id="out" hidden>Quitter</button></div>
+<div id="st" class="mu"></div><nav id="nav" hidden></nav><div id="app"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ====== À MODIFIER : Supabase > Project Settings > API ======
+const SUPABASE_URL="COLLE_ICI_TON_URL";
+const SUPABASE_KEY="COLLE_ICI_TA_CLE_ANON";
+// ============================================================
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LB={nouveau:"Nouvelle",en_livraison:"En livraison",livre:"Livrée"};
+const money=n=>Number(n).toFixed(2)+" MAD";
+let me=null,tab="client",menu=[],orders=[],users=[],cart={},f={name:"",addr:"",email:"",pw:"",nm:""},signup=false,sub=false;
+const total=()=>menu.reduce((s,m)=>s+(cart[m.id]||0)*m.price,0);
+const say=m=>{$("#st").textContent=m||""};
+function ordHTML(o,acts){const it=(o.items||[]).map(i=>i.q+"× "+esc(i.n)).join(", ");
+return `<div class="c"><div class="r"><b>${esc(o.customer)}</b><span class="t ${o.status}">${LB[o.status]}</span></div><div class="mu">${esc(o.address)}</div><div>${it}</div><div class="r"><b>${money(o.total)}</b>${o.driver_name?`<span class="mu">Livreur : ${esc(o.driver_name)}</span>`:""}</div>${acts||""}</div>`}
+function render(){
+ if(document.activeElement&&/INPUT|SELECT/.test(document.activeElement.tagName))return;
+ const nav=$("#nav"),out=$("#out");
+ if(!me){nav.hidden=true;out.hidden=true;
+  $("#app").innerHTML=`<div class="c"><h2 style="margin-top:0">${signup?"Créer un compte":"Connexion"}</h2>${signup?`<input id="in" placeholder="Votre nom" value="${esc(f.nm)}">`:""}<input id="ie" type="email" placeholder="E-mail" value="${esc(f.email)}"><input id="ip" type="password" placeholder="Mot de passe (6 caractères min.)" value="${esc(f.pw)}"><button class="b w" data-a="auth">${signup?"Créer mon compte":"Se connecter"}</button><button class="g w" data-a="mode">${signup?"J’ai déjà un compte":"Pas de compte ? S’inscrire"}</button></div>`;return}
+ out.hidden=false;
+ const tabs=me.role=="admin"?[["admin","Admin"],["livreur","Livreur"],["client","Client"]]:me.role=="livreur"?[["livreur","Livreur"],["client","Client"]]:[["client","Client"]];
+ nav.hidden=tabs.length<2;nav.innerHTML=tabs.map(([k,l])=>`<button data-t="${k}" class="${tab==k?"on":""}">${l}</button>`).join("");
+ let h="";
+ if(tab=="client"){
+  h+="<h2>Menu</h2>"+menu.filter(m=>m.available).map(m=>`<div class="c r"><div><b>${esc(m.name)}</b><div class="mu">${money(m.price)}</div></div><div class="r"><button class="q" data-a="min" data-id="${m.id}">−</button><b>${cart[m.id]||0}</b><button class="q" data-a="plus" data-id="${m.id}">+</button></div></div>`).join("");
+  h+=`<div class="c"><div class="r"><b>Total</b><b>${money(total())}</b></div><input id="fn" placeholder="Votre nom" value="${esc(f.name||me.name)}"><input id="fa" placeholder="Adresse de livraison" value="${esc(f.addr)}"><button class="b w" data-a="order">Commander</button></div>`;
+  const my=orders.filter(o=>o.client_id==me.id);
+  h+="<h2>Mes commandes</h2>"+(my.length?my.map(o=>ordHTML(o)).join(""):'<p class="mu">Aucune commande.</p>');
+ }else if(tab=="livreur"){
+  const nw=orders.filter(o=>o.status=="nouveau"),en=orders.filter(o=>o.status=="en_livraison"&&o.driver_id==me.id);
+  h+="<h2>À prendre</h2>"+(nw.length?nw.map(o=>ordHTML(o,`<button class="b w" data-a="take" data-id="${o.id}">Accepter</button>`)).join(""):'<p class="mu">Rien en attente.</p>');
+  h+="<h2>Mes livraisons en cours</h2>"+(en.length?en.map(o=>ordHTML(o,`<button class="b w" data-a="done" data-id="${o.id}">Marquer livrée</button>`)).join(""):'<p class="mu">Aucune.</p>');
+ }else{
+  const c=s=>orders.filter(o=>o.status==s).length,rev=orders.filter(o=>o.status=="livre").reduce((s,o)=>s+Number(o.total),0);
+  h+=`<div class="k"><div class="c"><b>${c("nouveau")}</b><span class="mu">Nouvelles</span></div><div class="c"><b>${c("en_livraison")}</b><span class="mu">En cours</span></div><div class="c"><b>${c("livre")}</b><span class="mu">Livrées</span></div></div><div class="c r"><span>Chiffre d’affaires livré</span><b>${money(rev)}</b></div>`;
+  h+="<h2>Plats</h2>"+menu.map(m=>`<div class="c r"><span>${esc(m.name)} · ${money(m.price)}</span><button class="g" data-a="del" data-id="${m.id}">Supprimer</button></div>`).join("");
+  h+=`<div class="c"><input id="mn" placeholder="Nom du plat"><input id="mp" type="number" inputmode="decimal" placeholder="Prix"><button class="b w" data-a="add">Ajouter le plat</button></div>`;
+  h+="<h2>Utilisateurs</h2>"+users.map(u=>`<div class="c"><div class="r"><div><b>${esc(u.name||"—")}</b><div class="mu">${esc(u.email)}</div></div><select data-u="${u.id}" style="width:auto">${["client","livreur","admin"].map(r=>`<option ${u.role==r?"selected":""}>${r}</option>`).join("")}</select></div></div>`).join("");
+  h+="<h2>Toutes les commandes</h2>"+orders.map(o=>ordHTML(o,o.status!="livre"?`<button class="g w" data-a="done" data-id="${o.id}">Marquer livrée</button>`:"")).join("");
+ }
+ $("#app").innerHTML=h;
+}
+async function refresh(){
+ const [m,o]=await Promise.all([sb.from("menu").select("*").order("id"),sb.from("orders").select("*").order("created_at",{ascending:false}).limit(200)]);
+ menu=m.data||[];orders=o.data||[];
+ if(me&&me.role=="admin"){const u=await sb.from("profiles").select("*").order("email");users=u.data||[]}
+ render();
+}
+async function load(session){
+ if(!session){me=null;render();return}
+ const {data,error}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
+ if(error||!data){say("Profil introuvable : avez-vous exécuté schema.sql ?");return}
+ me=data;tab=me.role=="admin"?"admin":me.role=="livreur"?"livreur":"client";say("");
+ if(!sub){sub=true;sb.channel("live").on("postgres_changes",{event:"*",schema:"public",table:"orders"},refresh).on("postgres_changes",{event:"*",schema:"public",table:"menu"},refresh).subscribe()}
+ refresh();
+}
+document.addEventListener("input",e=>{const k={fn:"name",fa:"addr",ie:"email",ip:"pw",in:"nm"}[e.target.id];if(k)f[k]=e.target.value});
+document.addEventListener("focusout",()=>setTimeout(render,50));
+document.addEventListener("change",async e=>{const u=e.target.dataset.u;if(!u)return;
+ const {error}=await sb.from("profiles").update({role:e.target.value}).eq("id",u);if(error)alert(error.message);refresh()});
+$("#out").onclick=()=>sb.auth.signOut();
+document.addEventListener("click",async e=>{
+ const t=e.target.dataset.t;if(t){tab=t;render();return}
+ const a=e.target.dataset.a,id=e.target.dataset.id;if(!a)return;
+ if(a=="plus"){cart[id]=(cart[id]||0)+1;render();return}
+ if(a=="min"){cart[id]=Math.max(0,(cart[id]||0)-1);render();return}
+ if(a=="mode"){signup=!signup;render();return}
+ let r;
+ if(a=="auth"){
+  if(!f.email||f.pw.length<6){alert("E-mail et mot de passe (6 caractères min.) requis.");return}
+  r=signup?await sb.auth.signUp({email:f.email,password:f.pw,options:{data:{name:f.nm}}}):await sb.auth.signInWithPassword({email:f.email,password:f.pw});
+  if(!r.error&&signup&&!r.data.session)alert("Compte créé. Vérifiez votre e-mail pour confirmer, puis connectez-vous.");
+ }else if(a=="order"){
+  const items=menu.filter(m=>cart[m.id]).map(m=>({id:m.id,q:cart[m.id]}));
+  if(!items.length||!(f.name||me.name).trim()||!f.addr.trim()){alert("Choisissez un plat, puis entrez votre nom et votre adresse.");return}
+  r=await sb.from("orders").insert({customer:(f.name||me.name).trim(),address:f.addr.trim(),items});
+  if(!r.error)cart={};
+ }else if(a=="take")r=await sb.from("orders").update({status:"en_livraison",driver_id:me.id,driver_name:me.name||me.email}).eq("id",id).eq("status","nouveau");
+ else if(a=="done")r=await sb.from("orders").update({status:"livre"}).eq("id",id);
+ else if(a=="add"){const n=$("#mn").value.trim(),p=parseFloat($("#mp").value);if(!n||!(p>0)){alert("Nom et prix requis.");return}r=await sb.from("menu").insert({name:n,price:p})}
+ else if(a=="del")r=await sb.from("menu").delete().eq("id",id);
+ if(r&&r.error)alert(r.error.message);else if(me)refresh();
+});
+if(SUPABASE_URL.startsWith("COLLE")){say("Configuration manquante : modifiez SUPABASE_URL et SUPABASE_KEY dans index.html.");}
+sb.auth.onAuthStateChange((_e,s)=>{load(s)});
+render();
+</script></body></html>
