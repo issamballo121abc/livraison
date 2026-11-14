@@ -30,8 +30,8 @@ input,select{width:100%;padding:10px;margin:4px 0;border:1px solid var(--bd);bor
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 // ====== À MODIFIER : Supabase > Project Settings > API ======
-const SUPABASE_URL="COLLE_ICI_TON_URL";
-const SUPABASE_KEY="COLLE_ICI_TA_CLE_ANON";
+const SUPABASE_URL="https://jbcepdplybrixemhfkwh.supabase.co/rest/v1/";
+const SUPABASE_KEY="sb_publishable_nnjwxVRP7NQ6J9eHWdkjaQ_t3A-0ypH";
 // ============================================================
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s);
